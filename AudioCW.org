@@ -1,0 +1,530 @@
+#+title: AudioCW
+
+#+startup: overview indent hideblocks entitiespretty
+#+property: header-args:sh :results output
+#+property: header-args:cpp :noeval :noweb yes
+#+setupfile: https://fniessen.github.io/org-html-themes/org/theme-bigblow.setup
+
+* Overview
+
+This project was inspired by [[https://github.com/cduck/morse.git][similar work]] done in Python. My desire is to expand upon it in several ways:
+1. Write the main audio generation component in C++ for speed and stability.
+2. Add a GUI component
+
+Future Plans:
+- [ ] Add a receive listener that decodes received audio from another PC, making A <--> B communication possible...
+  - How to prevent collisions? Separate
+- [ ] Auto configure that detects wpm and frequency/tone by listening for a repeating pattern of "v v v v" from sender.
+    Essentially a dial tone...
+- [ ] Represent morse alphabet and prosigns with a trie data structure
+- [ ] Make a better, more elegant UI. At a minimum add more functionality.
+
+* External Dependencies
+
+*Python3* GUI was developed with python 3.13.5-1
+*libsndfile-dev* - Provides sndfile.h headers for C++
+*mpv* - provides robust, lightweight audio playback capabilities (can easily sub for aplay or player of your choice)
+
+#+name: sh_deb_install_deps
+#+begin_src sh :results silent
+# Provides sndfile.h for audiocw
+sudo apt install libsndfile-dev \
+                 python-3-defaults \
+                 gcc-defaults \
+                 mpv
+#+end_src
+
+* Notes
+** Nyquist Frequency:
+#+begin_quote
+EF7F05
+Q: How frequently must an analog signal be sampled to be accurately reproduced?
+A: At least twice the rate of the highest frequency component of the signal.
+#+end_quote
+
+So, it ends up being that the human ear can hear between ~20Hz and 20kHz~
+Since our Analog to Digital Converter ADC is converting sine waves (that we're modeling) into discrete "samples" (vector of floats)
+we need to know how many samples per second (Hz) we need.  [[https://en.wikipedia.org/wiki/Nyquist_frequency][Harry Nyquist]] found that to accurately reproduce the highest frequency of our audio,
+which for our ears' sake is max 20kHz, we need 2*f as a sample rate.  Or, ~44100kHz. This is basically universal in the audio world since digital audio's inception.
+
+In fact, it's actually more about frequency /range/ than the frequency itself.  The FCC exam glosses over this. In reality, it's the bandwidth of the signal that
+determines the highest frequency.
+
+As a sanity check, consider a 5GHz WiFi Router...  The sample rate is luckily not 10GHz, which surpasses most modern processors...
+Currently the Intel Core i9-14900KS can push 6.2GHz...
+
+Rather, the /channel width/ is what we care about:
+For our ears, it's still ~20000Hz (20000Hz - 200Hz)
+For our WiFi, channel width ranges from 20MHz - 160MHz.  <- Highest Freq = 160/2 * 2...
+
+Low edge |........ - ........| High edge
+           80MHz  CTR  80MHz
+
+In reality, most WiFi routers are sampling at at least 1GHz to ensure accuracy. Nyquist is dealing with minimums...
+
+** PARIS Standard:
+The ~ITU-RM.1677-1~ standard specifies that the duration of a <dit> should be 1200 ms / WPM.
+From that, all other spacings can be easily derived...
+i.e. <dash> = 3<dit>; <per-element spacing> = 1<dit>; <per-letter spacing> = 3<dit>; <per-word spacing> = 7<dit>
+
+*Similarly:*
+5     WPM → 240 ms / <dit>
+12    WPM → 100 ms / <dit>
+30    WPM → 40 ms / <dit>
+60    WPM → 20 ms / <dit>
+100  WPM → 12 ms / <dit>
+
+* AudioCW Supporting Functions
+
+This is essentailly a very primitive [[https://en.wikipedia.org/wiki/Digital_signal_processing][digital signal processin]]g (DSP) implementation...
+There's a two-step process to this, the latter which is less obvious perhaps.
+
+1. Discretization: [8.6]
+   The frequency is first divided up into a equal intervals of time (via ~SAMPLE_RATE~).
+   Each of these values is the amplitude of the sinusoid at that point in time.
+
+2. Quantization: [8.5.2]
+   Our values for frequency will be real numbers, but rationals and irrationals are also subsets of real numbers.
+   It's possible during discretization to end up with a number with more precision (trailing decimal values) than
+   the implementation (or the CPU) can handle. So, quantization is basically the rounding error...
+
+   Thus far for generating simple audio tones, this doesn't seem to matter that much. Conceptually, for something more complicated
+   like WiFi that uses QAM, this probably matters a lot. It may matter more for receiving audible tones from the microphone?
+
+The [[https://www.arrl.org/arrl-handbook-2023][ARRL Handbook]] - Chapter 8 specifically - has a treasure trove of information on DSP, specifically when it comes to microprocessors
+and how this process can be made even more efficient (both RX and TX).
+
+8.6.3 goes into a lot of detail on the importance of bit depth. If the signal isn't sampled at a high enough frequency, undesirable spikes in amplitude.
+If for whatever reason only very low bit depth is available, ~dithering~ (essentially low-level background noise) can be added to the signal to reduce the spike,
+but at the expense of losing some of the signal-to-noise ratio SNR. Conceptually, I don't see this being an issue on a modern PC right now, but if this eventually
+gets adapted to some sort of embedded platform (ESP32, Arduino?) it might come in handy...
+
+---
+
+NOTE: I think the lookup table could be implemented nicely with ~constexpr~ potentially...  Essentially the values for the sinusoids at the given frequencies would be
+evaluated at compile time and become part of the program (at the expense of the program's size?)...  This could be fun to experiment with later.
+
+#+name: fn_generateTone
+#+begin_src cpp
+// Evaluates amplitudes at the specified sample rate
+auto generateTone(const auto frequency,
+                  const auto duration,
+                  auto &samples) {
+    auto totalSamples { static_cast<size_t>(SAMPLE_RATE * duration) };
+
+    for (size_t i = 0; i < totalSamples; ++i) {
+        // Append amplitude at given time to samples
+        samples.push_back(static_cast<float>
+                          (sin(2.0 * PI * frequency * (i / SAMPLE_RATE))));
+    }
+}
+#+end_src
+
+Here, we're using the file system library to add some robustness to creating our temporary .wav file.
+Specifically, this should allow for some compatibility with setups that don't use /tmp or are configured in
+unexpected ways...  i.e. Windows/MAC...
+
+TODO:
+- [ ] Test Mac/Windows Compatibility
+
+#+name: fn_genWavFilename
+#+begin_src cpp
+// Description: Generate a random filename for WAV file
+auto genWavFilename() -> std::filesystem::path {
+    std::random_device rd {};
+    std::mt19937 eng { rd() };
+    std::uniform_int_distribution<> distr { 1000,9999 };
+
+    auto randomNum { distr(eng) };
+
+    auto tempDir { std::filesystem::temp_directory_path() };
+    auto file { tempDir / std::format("audiocw{}.wav", randomNum) };
+
+    return file;
+}
+#+end_src
+
+
+This function handles the saving of the WAV file that's stored in ~samples~ to disk
+at the filename as determined by ~genWavFilename()~
+
+The use of the logical OR for the file format is interesting...
+per the [[https://libsndfile.github.io/libsndfile/api.html][libsndfile docs]], the values for the format field held by the SF_INFO structure may be
+a variety of several major formats and subtypes:
+
+Major Type:
+SF_FORMAT_WAV 	0x010000 	Microsoft WAV format (little endian).
+...
+
+Subtype:
+SF_FORMAT_PCM_16 	0x0002 	Signed 16 bit data
+
+0x010000 OR 0x0002 -> 0x010002
+i.e.
+10000000000000000 OR 10 -> 10000000000000010
+
+P.S. A programmer's calculator is gold for this...
+
+Regardless, this is a critical setting that directly ties in with the bit depth we chose (or the hardware is capable of)...
+Also, per the ARRL handbook, we could also be using hardware or an implementation that does unsigned quantization, in which case
+we could use ~SF_FORMAT_PCM_U8~ or [[https://en.wikipedia.org/wiki/Full_Rate][Full Rate]], which was notably the first speech coding standard in early mobile "2G" phone systems.
+The Wikipedia link has an awesome side-by-side comparison between modern audio and Full Rate...
+
+NOTE: genTone function above is currently using a float (8 bits of precision)...  Using PCM_16 is overkill... Fix later?
+
+#+name: fn_saveWavFile
+#+begin_src cpp
+// Writes the audio to a file
+auto saveWavFile(const auto &filename,
+                 const auto &samples) {
+    SF_INFO sfinfo {};
+
+    // Configure formatting for the .WAV file...
+    sfinfo.frames = samples.size();
+    sfinfo.samplerate = SAMPLE_RATE;
+    sfinfo.channels = 1; // Mono
+    sfinfo.format = SF_FORMAT_WAV | SF_FORMAT_PCM_16; //combine format with logical or...
+
+    SNDFILE *outfile { sf_open(filename.c_str(), SFM_WRITE, &sfinfo) };
+    if (!outfile) {
+        std::cerr << "Error opening file for writing: " << sf_strerror(nullptr) << std::endl;
+        return;
+    }
+
+    sf_write_float(outfile, samples.data(), samples.size());
+    sf_close(outfile);
+}
+#+end_src
+
+
+Here, the WAV is generated by making repeated calls to ~generateTone()~, as well as adding spacing and such to the beginning
+to avoid issues when the PC first opens the audio to play it.
+
+TODO:
+- [ ] Fix nested for loop and just iterate character-wise? Why loop each word and then each character of each word?
+
+#+name: fn_generateMorseCodeWav
+#+begin_src cpp
+auto generateMorseCodeWav(const auto &morseVec,
+                          const auto wpm,
+                          const auto freq,
+                          const auto filename) {
+
+    // This'll be essentially the list of amplitudes for each "slice" of the wavefrorm
+    auto samples { std::vector<float>() };
+
+    // Timing based on international Morse code standards
+    auto dotDuration { 1.2 / wpm }; // Duration of a dot per PARIS standard
+    auto dashDuration { dotDuration * 3 }; // Duration of a dash
+
+    // character grouping (word-wise) write to samples
+    for (auto i = 0u; i < morseVec.size(); i++) {
+        auto charGroup { morseVec[i] };
+        // dit-dash wise write to samples...
+        for (char c : charGroup) {
+            if (c == '.') {
+                generateTone(freq, dotDuration, samples);  // write DOT to WAV
+                // Add space between each DOT or DASH of one DOT duration
+                auto silenceSamples { static_cast<size_t>(SAMPLE_RATE * dotDuration) };
+                samples.insert(samples.end(), silenceSamples, 0.0f);
+            } else if (c == '-') {
+                generateTone(freq, dashDuration, samples); // write DASH to wav
+                // Add space between each DOT or DASH of one DOT duration
+                auto silenceSamples { static_cast<size_t>(SAMPLE_RATE * dotDuration) };
+                samples.insert(samples.end(), silenceSamples, 0.0f);
+            } else if (c == ' ') {
+                /*
+                  If a <SPC> is encountered, we're at a letter boundary...
+                  NOTE: -1 b/c 1 <dit> already added previously.
+                */
+                auto silenceSamples { static_cast<size_t>(SAMPLE_RATE * dotDuration * 2) };
+                samples.insert(samples.end(), silenceSamples, 0.0f);
+            }else { std::cerr << "generateMorseCodeWav encountered unexpected char: " << c << '\n'; }
+        }
+        /*
+          Add space between morse char groups (words) if it's not the last word in morseVec
+          NOTE: Some sort of -1 issue preventing me from implementing this as I'd like...
+        ,*/
+        if (i != morseVec.size() - 1) {
+            auto silenceSamples { static_cast<size_t>(SAMPLE_RATE * dotDuration * 6) };
+            samples.insert(samples.end(), silenceSamples, 0.0f);
+        }
+    }
+
+    // Padding at the beginning
+    auto paddingSamples { static_cast<size_t>(SAMPLE_RATE * dashDuration) };
+    samples.insert(samples.begin(), paddingSamples, 0.0f);
+
+    saveWavFile(filename, samples);
+}
+#+end_src
+
+TODO:
+- [ ] Add support for prosigns as whole words
+- [ ] Error handling for unrecognized characters
+- ? maybe morseCode members should be tuples w/ matching ASCII values?
+  For future work converting back from audio .- to chars?
+- Consider making morseCode a global var for use elsewhere?
+  I think I can use constexpr?  Also, does it need to be std::string? <- yes, string is safer...
+
+TODO: I'm quite sure there's a better way to actually convert between text and morse
+using a [[https://www.geeksforgeeks.org/cpp/trie-data-structure-in-cpp/][trie]] structure. However, I'm currently unfamiliar with how to do that. This works for now...
+
+The stack of if elseif else statements is functional, but I think there's a better way to do this, also.
+
+#+name: fn_textToMorse
+#+begin_src cpp
+// Convert text gathered from STDIN into -. string format:
+auto textToMorse(const char* text) -> std::vector <std::string> {
+    // First order of business is to split string into words
+    std::istringstream iss(text);
+    std::string word {};
+    std::vector<std::string> words {};
+
+    // We've now stored the collection of words in a vector
+    while (iss >> word) words.push_back(word);
+
+    // Set list of characters and symbols we'll be recognizing as valid morse
+    const std::string morseCode[] = {
+        ".-",       // A
+        "-...",     // B
+        "-.-.",     // C
+        "-..",      // D
+        ".",        // E
+        "..-.",     // F
+        "--.",      // G
+        "....",     // H
+        "..",       // I
+        ".---",     // J
+        "-.-",      // K
+        ".-..",     // L
+        "--",       // M
+        "-.",       // N
+        "---",      // O
+        ".--.",     // P
+        "--.-",     // Q
+        ".-.",      // R
+        "...",      // S
+        "-",        // T
+        "..-",      // U
+        "...-",     // V
+        ".--",      // W
+        "-..-",     // X
+        "-.--",     // Y
+        "--..",     // Z
+        "-----",    // 0 :26
+        ".----",    // 1
+        "..---",    // 2
+        "...--",    // 3
+        "....-",    // 4
+        ".....",    // 5
+        "-....",    // 6
+        "--...",    // 7
+        "---..",    // 8
+        "----.",    // 9
+        ".-.-.-",   // <PERIOD> 36
+        "--..--",   // <COMMMA> 37
+        "..--..",   // <QUESTION MARK> 38
+        "-.-.--",   // <Exclamation MARK> 39
+        "-..-.",    // <SLASH> 40
+        ".-...",    // <AMPERSAND> 41
+        "---...",   // <COLON> 42
+        "-.-.-.",   // <SEMICOLON 43
+        "..--.-",   // <UNDERSCORE> 44
+        "...-..-",  // <DOLLAR SIGN> 45
+        ".--.-.",   // <AT SIGN> 46
+    };
+
+    std::vector<std::string> morseToSend {};
+    for (auto word : words) {
+        // Empty string to hold our DITS and DASHES
+        std::string morseWord {};
+
+        // for each ch in a word, we'll append the string
+        for (size_t i = 0; i < word.length(); i++) {
+            auto ch { std::toupper(word[i]) };
+            if (ch >= 'A' && ch <= 'Z') {
+                morseWord.append(morseCode[ch - 'A']);
+            } else if (ch >= '0' && ch <= '9') {
+                morseWord.append(morseCode[ch - '0' + 26]); // Numbers start at 26
+            } else {
+                switch (ch) {
+                    case '.': {morseWord.append(morseCode[36]); break;}
+                    case ',': {morseWord.append(morseCode[37]); break;}
+                    case '?': {morseWord.append(morseCode[38]); break;}
+                    case '!': {morseWord.append(morseCode[39]); break;}
+                    case '/': {morseWord.append(morseCode[40]); break;}
+                    case '&': {morseWord.append(morseCode[41]); break;}
+                    case ':': {morseWord.append(morseCode[42]); break;}
+                    case ';': {morseWord.append(morseCode[43]); break;}
+                    case '_': {morseWord.append(morseCode[44]); break;}
+                    case '$': {morseWord.append(morseCode[45]); break;}
+                    case '@': {morseWord.append(morseCode[46]); break;}
+                    default: break; // TEMP: Ignore unrecognized characters
+                }
+            }
+
+            /*
+              After each character converted, add a single <SPACE>
+              SKIP very last letter
+            */
+            if (i != word.length() - 1) { morseWord.append(" "); }
+        }
+        // Append morseWord to morseToSend:
+        morseToSend.push_back(morseWord);
+    }
+
+    // Return an array of words converted to DASH-DITs.
+    return morseToSend;
+}
+#+end_src
+
+* AudioCW Main Program
+
+[[file:Makefile][GOTO: Makefile]]
+[[file:src/main.cpp][GOTO: main.cpp]]
+
+- [ ] Might be able to swap out #includes for *modules* in the future for a performance bump?
+
+- Use of unnamed namespace:
+  Should this file eventually be imported into a larger program, the compiler will automatically
+  avoid collisions by assigning a unique name to each unnamed namespace and handle keeping everything separate.
+
+#+name: main
+#+begin_src cpp :eval false :mkdirp yes :tangle src/AudioCW/main.cpp :results output :comments noweb
+#include <iostream>
+#include <sstream>
+#include <filesystem>
+#include <format>
+#include <cmath>
+#include <random>
+#include <vector>
+#include <sndfile.h>
+
+namespace {
+    // Global Constants
+    constexpr double SAMPLE_RATE = 8000.0;
+    constexpr double PI = 3.14159265358979323846;
+
+    // Begin tangling supporting functions
+    <<fn_genWavFilename>>
+    <<fn_generateTone>>
+    <<fn_saveWavFile>>
+    <<fn_generateMorseCodeWav>>
+    <<fn_textToMorse>>
+    // End tangling supporting functions
+}
+
+
+int main(int argc, char** argv) {
+    // Get a pseudorandom filename to store audio file to:
+    const auto filename = genWavFilename();
+
+    auto freq { 750 }; // Default frequency if not specified.
+    auto wpm { 10 };
+
+    // Print help if nothing specified or invalid syntax...
+    if (argc == 1 || argc > 4) {
+        std::cerr << "Usage: ./main <text> [freq] [wpm]" << '\n';
+        return 1; // Exit with error if nothing is passed
+    }
+
+    // If provided text and freq:
+    if (argc == 3) freq = std::atof(argv[2]);
+
+    // If provided text, freq and wpm:
+    if (argc == 4) {
+        freq = std::atof(argv[2]);
+        wpm = std::atoi(argv[3]);
+    }
+
+    // Send your text off to be converted to .- format vector:
+    const auto morseVec { textToMorse(argv[1]) };
+
+    generateMorseCodeWav(morseVec, wpm, freq, filename);
+
+    std::cout << "AUDIO OUT: " << filename << std::endl;
+
+    // Program End - Exit Successfully
+    return 0;
+}
+#+end_src
+
+* Python Tkinter GUI
+#+name: fn_tkinter_gui
+#+begin_src python :eval true :mkdirp yes :tangle src/gui.py :results silent
+#!/usr/bin/python3
+import tkinter as tk
+from tkinter import ttk
+from tkinter import messagebox  # Import messagebox correctly
+import subprocess as sp
+import os
+
+os.environ['PATH'] += os.pathsep + os.path.expanduser('~/.local/bin')
+
+def send_text():
+    text = text_box.get("1.0", tk.END).strip()
+    tone = tone_var.get()
+    wpm = wpm_var.get()
+
+    # Send user-supplied text to C++ program audiocw (needs to be in PATH)
+    if text:
+        try:
+            result = sp.run(['audiocw', text, tone, wpm],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+        except sp.CalledProcessError as e:
+            messagebox.showerror(f"An error occured: {e}")
+    else:
+        messagebox.showwarning("Warning", "Please enter some text.")
+
+    # Retrieve audio file full path from stdout:
+    output = result.stdout.strip()
+    audio_path = output.split("AUDIO OUT:")[1].strip().replace('"', '')
+
+    # Play the audio through the speakers:
+    try:
+        sp.run(['mpv', audio_path])
+    except sp.CalledProcessError as e:
+        messagebox.showerror(f"An error occured: {e}")
+
+    # Remove audio file:
+    try:
+        os.remove(audio_path)
+    except OSError as e:
+        messagebox.showerror(f"An error occured: {e}")
+
+
+# Create the main window
+root = tk.Tk()
+root.title("AudioCW - GUI")
+
+# Create a large text box
+text_box = tk.Text(root, height=10, width=50)
+text_box.pack(pady=10)
+
+# Create a label and drop-down for tone selection
+tone_var = tk.StringVar(value=700)
+tone_label = tk.Label(root, text="Tone (Hz):")
+tone_label.pack()
+tone_dropdown = ttk.Combobox(root, textvariable=tone_var)
+tone_dropdown['values'] = list(range(300,1800,100))
+tone_dropdown.pack(pady=5)
+
+# Create a label and drop-down for WPM selection
+wpm_var = tk.StringVar(value=10)
+wpm_label = tk.Label(root, text="WPM:")
+wpm_label.pack()
+wpm_dropdown = ttk.Combobox(root, textvariable=wpm_var)
+wpm_dropdown['values'] = (5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100)
+wpm_dropdown.pack(pady=5)
+
+# Create an OK button
+send_button = tk.Button(root, text="Send", command=send_text)
+send_button.pack(pady=20)
+
+# Run the application
+root.mainloop()
+ #+end_src
