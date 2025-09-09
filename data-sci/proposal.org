@@ -1,5 +1,5 @@
 #+title: Data Science Project Proposal
-#+author: Matthew Younger
+#+author: Matthew Younger - Pledged
 #+date: <2025-09-09 Tue>
 
 #+startup: indent overview hideblocks entitiespretty
