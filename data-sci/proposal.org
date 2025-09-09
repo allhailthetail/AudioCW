@@ -1,0 +1,137 @@
+#+title: Data Science Project Proposal
+#+author: Matthew Younger
+#+date: <2025-09-09 Tue>
+
+#+startup: indent overview hideblocks entitiespretty
+
+* Summary
+
+- The purpose of this project (actually a sub-project) is to satisfy the requirements for a College-level
+  Data Science project, as well as to further my study of Machine Learning and Computer Science.
+
+* Introduction and Background
+
+- The issue prompting this project is that while encoding and decoding CW/Morse is a relatively trivial task for /humans,/
+  it is not so for a computer.
+
+- Morse is an intricate sequence of a short and long tones, differentiated by and grouped by
+  very precisely-timed intervals of relative silence. As such, each transmission shares common characteristics:
+
+  1. Every observation has a tone of a specific frequency (Hz), accompanied by some amount of parasitic noise
+     (whether the noise floor/"background noise", or man-made interference.
+
+  2. A static pair of tonal emissions of a known length:
+     - A dit is one measure of time <-- The standard measure \mu
+     - A da is 3\mu measures of time.
+
+  3. Strict voids between morse "characters", morse groups "letters", and groups of groups "words"
+     - intra-character spacing of \mu
+     - Inter-character spacing of 3\mu
+     - Word/Character group spacing of 7\mu
+
+     #+begin_comment
+     Interestingly, just as humans themselves typically excel at learning to send these codes,
+     most learners find it far more difficult to receive and decode the tones...
+
+     The same seems to be true when considering how to go analyze and decode these same signals with a computer.
+     This interesting parallel between how humans and computers "learn" or are taught a new skill is an increasingly active area of study
+     as Artificial Intelligence and techniques allowing computers to "learn" are becoming more mainstream in this new era.
+
+     [[https://www.brown.edu/news/2025-09-04/ai-human-learning][Brown University]] (paraphrased)
+     #+end_comment
+
+* Methodology and Approach
+
+- My planned approach is to use [[https://www.kaggle.com/competitions/morse-challenge/data][a set of training data]] from kaggle, which will be analyzed in R using various candidate libraries to conduct
+  *Exploratory Data Analysis*, before proceeding to extracting the codes and processing the messages with libraries including but not limited to:
+  - [[https://cran.r-project.org/web/packages/sonicscrewdriver/vignettes/manage_audio.html][Sonic Screwdriver Lib - CRAN]]
+  - [[https://reintech.io/blog/speech-and-audio-processing-with-r][Seewave Lib]]
+
+- Alternatively, if the first proposed dataset proves insufficient to study, Creating some artificial data with the [[https://github.com/allhailthetail/AudioCW][already-existing implementation]] that this
+  app will support is a trivial task.
+
+  - Conceptually, I feel like there are several paths towards a solution:
+    - Geometric Mean:
+      By far the simplest and most straighforward method is to measure dits and dashes through establishing a cutoff
+      threshold for "tone on/off" and using the [[https://www.k4icy.com/cw_decoder.html][geometric/arithmetic mean]] to continually evaluate what must be a dit/dash based on
+      how the small bit of sound compares to this running calculation. This has been implemented on very minimal hardware such as an ardiuno,
+      and it's admirable for its simplicity. I think this would be a good point to start the project, because it directly ties in with *evaluating and
+      telling the story of the data,* which is a key deliverable for an Intro to Data Science course. From there, time permitting, perhaps the more advanced methods
+      can be added to improve accuracy as needed.
+
+    - Bayesian Probability:
+      [[https://ag1le.blogspot.com/2013/01/towards-bayesian-morse-decoder.html][Some implementations]]  have attempted to use Bayesian probability to estimate the /probability/ that
+      a given tone is a dit/da or even an entire word fits inside a given /dictionary/ of words. This could potentially
+      be used by itself, or as a type of post-processing after a simpler and lighter algorithm does the bulk of the
+      heavy lifting. Many practical conversations are very formulaic and predictable, due to the nature of HAM radio;
+      The typical conversation usually consists of a callsign, a brief exchange of location, reception clarity, contest details,
+      type of equipment being used to transmit and receive with, and an end of transmission "goodbye." The small sample space makes
+      this a good option - even more so in the case of a robot that's exchanging a highly formulaic message sequence such as:
+
+      #+begin_comment
+      {Foreward, Yaw Left or Right, Camera Yaw Left or Right}
+      Move at X speed
+      Move For X seconds
+      #+end_comment
+
+      I.e. even if a rather error-prone decoding algorithm is only right at determining, for example, 3/5
+      of the dits or da's with dependable accuracy, a Bayesian algorithm should be able to determine the intended word.
+
+    - Clustering:
+      There's promising literature that indicates clustering is very good for identifying [[https://www.denaclink.com/post/20220317b-r-tutorial/][bird sounds]] in audio recordings.
+      Just as birds have a distinct sound, so does each letter in CW. Per the guidance of the largest CW enthusiasts club in the country,
+      humans learn best by recognizing entire sounds, as opposed to decoding the sequence of dashes and dits on the fly.
+
+      #+begin_comment
+      Students are directed to mark a paper with a dot when they recognize the acoustic sound.
+      Then the acoustic sound is associated with a character. From then on, students are directed to say, write,
+      or type the character when they recognize it.  The process is repeated with each new character.
+
+      [[https://longislandcwclub.org/beginners-curriculum/][Source - LICW Society]]
+      #+end_comment
+
+- Machine Learning could be applicable in certain cases, particularly when normal analysis cannot predictably decipher a signal;
+  given that morse can be transmitted accross a range of tones (Hz) and speeds (WPM), there are more scenarios than would be efficient
+  to account for by "hard coding" every possible variation. Additionally, since this data is gathered from a microphone, there's
+  strong potential for interference (static and environmental noise), that may be impossible to remove with filtering techniques.
+
+* Timeline
+
+Per the course outline, this project is to be managed in the *SCRUM agile project management* style,
+where we are encouraged as aspiring Data Scientists to continually /evaluate/ and /learn through our experiences/
+with attention to our personal *skill stack and problem-solving abilities* as they relate to the task at hand.
+
+Particularly, the project will be divided into four checkpoints:
+
+1. *This proposal stage:* where the idea is pitched to a client or end-user.
+
+2. *Literature Review*: wherein we evaluate other scholarly material to gain helpful insights.
+   A core skill in good Science is having an adequate grasp of what others have tried before.
+
+3. *Abstract:* Likewise, it is important that one's research is clearly articulated. An abstract helps
+   other readers to efficiently determine whether our work is relevant to their studies.
+
+4. *Presentation:* Finally, the conclusion of our study is presented to other scientists, students, colleagues,
+   or more universally an end-user. Almost always done in a live "show-and-tell" style, this an opportunity to showcase
+   a project and generate further interest to continue development or gain patronage for a future project (or to pass a class, in this case).
+
+* Evaluation
+
+Evaluation will be conducted formally by the course instructor per the University's grading policy,
+the course syllabus, and the grading rubric as provided for each stage. In addition, less informal but no less
+important evaluation is conducted by the researcher, per the aforementioned agile framework.
+
+Strictly in terms of measuring the success of any meaningful data extracted, the candidate Kaggle dataset mentions that
+the /Levenshtein distance/ is the metric by which any candidate solution to their challenge is objectively evaluated. They provide this
+as a part of the dataset, so the outcome is measurable beyond grading.
+
+* Conclusion
+
+Foremost, it is this project's intention to examine CW/Morse Code audio emissions gathered by microphone via digital signal processing
+from a Data Science perspective. Audio files themselves are data structures which contain meaningful data, as well as outlier data: static, or literal noise, which can be
+*cleaned, manipulated, analyzed, and visualized* in order to *extract meaningful insights and information:* an encoded message.
+
+Ultimately, Data Science in this context furthers the parent program's ability to decode raw data from a microphone into actionable information that can either be displayed to an end-user
+and/or executed directly by another program in an application stack as part of a larger project. As such, if this project can meet its goals , it not only adequately demonstrates
+Data Science's intrinsic value in analyzing and understanding complicated information such as audio waveforms, but additionally showcases its value as an applied science to further other
+other fields, such as robotics, telecommunications, and machine learning, which are likewise key areas relating to the larger project.
