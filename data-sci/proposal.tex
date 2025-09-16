@@ -1,0 +1,184 @@
+% Created 2025-09-16 Tue 00:29
+% Intended LaTeX compiler: pdflatex
+\documentclass[11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{graphicx}
+\usepackage{longtable}
+\usepackage{wrapfig}
+\usepackage{rotating}
+\usepackage[normalem]{ulem}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{capt-of}
+\usepackage{hyperref}
+\usepackage[margin=1in]{geometry}
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage[style=apa,sorting=none,backend=biber]{biblatex}
+\addbibresource{./refs.bib}
+\author{Matthew Younger - Pledged}
+\date{\today}
+\title{From Sound to Story\\\medskip
+\large Exploratory Data Analysis and Data Preparation of Morse Code Signals in R}
+\hypersetup{
+ pdfauthor={Matthew Younger - Pledged},
+ pdftitle={From Sound to Story},
+ pdfkeywords={},
+ pdfsubject={},
+ pdfcreator={Emacs 30.1 (Org mode 9.7.11)}, 
+ pdflang={English}}
+\begin{document}
+
+\maketitle
+\setcounter{tocdepth}{2}
+\tableofcontents
+
+\section{Summary}
+\label{sec:org568b73b}
+The purpose of this project (actually a sub-project) is to satisfy the requirements for a College-level
+Data Science project, as well as to further my study of Machine Learning and Computer Science.
+\section{Introduction and Background}
+\label{sec:orgb6391be}
+The issue prompting this project is that while encoding and decoding CW/Morse is a relatively trivial task for \emph{humans,}
+it is not so for a computer. Morse is an intricate sequence of a short and long tones, differentiated by and grouped by
+very precisely-timed intervals of relative silence. As such, each transmission shares common characteristics:
+
+\begin{enumerate}
+\item Every observation has a tone of a specific frequency (Hz), accompanied by some amount of parasitic noise
+(whether the noise floor/"background noise", or man-made interference.
+
+\item A static pair of tonal emissions of a known length:
+\begin{itemize}
+\item A dit is one measure of time <-- The standard measure \(\mu\)
+\item A da is 3\(\mu\) measures of time.
+\end{itemize}
+
+\item Strict voids between morse "characters", morse groups "letters", and groups of groups "words"
+\begin{itemize}
+\item intra-character spacing of \(\mu\)
+\item Inter-character spacing of 3\(\mu\)
+\item Word/Character group spacing of 7\(\mu\)
+\end{itemize}
+\end{enumerate}
+\section{Methodology and Approach}
+\label{sec:orgdddf39a}
+\subsection{Visualization and EDA}
+\label{sec:org615a903}
+The proposed approach is to use computer-generated training originally intended for a \emph{Morse Learning Machine challenge} from Kaggle \autocite{ag1le2014},
+which will be analyzed in R using various candidate libraries to conduct \textbf{Exploratory Data Analysis} using:
+\begin{itemize}
+\item Sonic Screwdriver \autocite{ssdriverCran}
+\item Seewave \autocite{seewaveCran}
+\item R Programming Language \autocite{RLang}
+\item GNU Emacs \autocite{emacs}
+\item GNU Org Mode \autocite{orgmode}
+\end{itemize}
+
+Proposed Visualization Techniques:
+\begin{enumerate}
+\item Waveform with amplitude envelope and annotated tone on/off segments.
+\item Timeline of gaps per element, char, and word.
+\item Fourier transform and Mel spectrograms with artificial tone track overlay.
+\item WPM estimate computed and annotated per the PARIS standard.
+\item Noise/SNR estimate for each recording.
+This information would be very valuable, as a high noise floor means any algorithm or
+conventional means of decoding the signal will presumably fail under sufficiently unfavorable conditions.
+\item Geometric Mean
+The simplest and most straighforward method is to measure dits and dashes through establishing a cut-off
+threshold for the tones via the geometric mean, as other studies have proven works reliably under ideal conditions, i.e. low noise and repeatable keying,
+\autocite{geomMeanK4ICY}. to continually evaluate what must be a dit/dash based on how the small bit of sound compares to this running calculation.
+This has been implemented on very minimal hardware such as an ardiuno, and it's admirable for its simplicity. I think this would be a good point to
+start the project, because it directly ties in with \textbf{evaluating and telling the story of the data,} which is a key deliverable for an
+Intro to Data Science course. From there, time permitting, perhaps the more advanced methods
+can be added to improve accuracy as needed.
+\end{enumerate}
+
+Finally, an abundance of proven artificial data is readily available by way of previous work done on the AudioCW project, \autocite{audioCW}.
+\subsection{Machine Learning}
+\label{sec:org25ab842}
+This research could extend into Machine Learning and interact with other software in the project.
+Conceptually, there are several machine learning techniques that could be applied:
+
+\begin{itemize}
+\item \textbf{Naive Bayes Classification:}
+The author of the Kaggle dataset previously attempted to use Bayesian probability to estimate the \emph{probability} that
+a given tone is a dit/da or even an entire word fits inside a given \emph{dictionary} of words, \autocite{a1gleblog}. This could potentially
+be used by itself, or as a type of post-processing after a simpler and lighter algorithm does the bulk of the
+heavy lifting. Many practical conversations are very formulaic and predictable, due to the nature of HAM radio;
+The typical conversation usually consists of a callsign, a brief exchange of location, reception clarity, contest details,
+type of equipment being used to transmit and receive with, and an end of transmission "goodbye." The small sample space makes
+this a good option - even more so in the case of a robot that's exchanging a highly formulaic message sequence.
+
+\item \textbf{Clustering:}
+There's promising literature that indicates clustering is very good for identifying bird sounds in audio recordings,
+particularly when combined with uniform manifold approximation and dimension reduction, \autocite{RSoundAnalysis}.
+Just as birds have a distinct sound, so does each letter in CW. Per the guidance of the largest CW enthusiasts club in the country,
+humans learn best by recognizing entire sounds, as opposed to decoding the sequence of dashes and dits on the fly.
+
+Literature from the Long Island CW enthusiasts club, one of the largest clubs dedicated to morse code in the United States,
+emphasizes the effectiveness of having students identify entire acoustic sounds, rather than \emph{counting} the sequenes, \autocite{LICWTrainingMaterials}.
+The group derives this understanding from careful review of Psychologist Ludwig Koch's study of learning Morse in 1936, having
+reached this conclusion after having an external entity translate Koch's work from the original German \autocite{KochReport}.
+\end{itemize}
+\section{Timeline}
+\label{sec:org0734104}
+Per the course outline, this project is to be managed under the \textbf{scrum project management} framework,
+where we are encouraged as aspiring Data Scientists to continually \emph{evaluate} and \emph{learn through our experiences}
+with attention to our personal \textbf{skill stack and problem-solving abilities} as they relate to the task at hand.
+
+Particularly, the project will be divided into four checkpoints:
+
+\begin{enumerate}
+\item \textbf{This proposal stage:} where the idea is pitched to a client or end-user.
+\item \textbf{Literature Review}: wherein we evaluate other scholarly material to gain helpful insights.
+A core skill in good Science is having an adequate grasp of what others have tried before.
+\item \textbf{Abstract:} Likewise, it is important that one's research is clearly articulated. An abstract helps
+other readers to efficiently determine whether our work is relevant to their studies.
+\item \textbf{Presentation:} Finally, the conclusion of our study is presented to other scientists, students, colleagues,
+or more universally an end-user. Almost always done in a live "show-and-tell" style, this an opportunity to showcase
+a project and generate further interest to continue development or gain patronage for a future project (or to pass a class, in this case).
+\end{enumerate}
+\section{Project Scope, Goals, and Constraints}
+\label{sec:org57423fc}
+\subsection{Scope and Goals}
+\label{sec:org2fc8765}
+The primary focus of the project, at least for the duration of the course, will be primarily on EDA and data visualization. As \emph{stretch goals,}
+It would be beneficial to the project as a whole to continue exploring Machine Learning and using the data obtained from analyzing the data for
+training the model.
+\subsection{Constraints}
+\label{sec:orgedde2d5}
+There are several important constraints to the project. Foremost is that most modern work being done with Morse is in the hobby sphere.
+It seems much less is being done in the field concerning morse, since it's considered an obsolete form of communication in the digital era.
+As such, finding relevant literature to support the literature review phase of the project could prove difficult.
+
+Additionally, the researcher is not acquainted with this type of analysis in R. This could lead to lost time spent troubleshooting issues unique to audio processing.
+However, the larger field of Digital Signal Processing and Telecommunications may have higher-quality materials readily available.
+\section{Evaluation}
+\label{sec:org32d7c0c}
+To aid in the visual evaluation, openly-available audio software, such as Tenacity \autocite{tenacityFOSS}, can be used to compare our generated
+visuals to that of a commonly-used audio tool. Synthetically-generated data can be interpreted visually in this way when it's pure tones without any noise or distortion,
+which so too should this data if it's adequately cleaned and coherently represented.
+
+Strictly in terms of measuring the success of any meaningful data extracted, the candidate Kaggle dataset mentions that
+the \emph{Levenshtein distance} is the metric by which any candidate solution to their challenge is objectively evaluated. They provide this
+as a part of the dataset, so the outcome is measurable beyond grading, should the project reach the Machine Learning stage.
+
+Evaluation will be conducted formally by the course instructor per the University's grading policy,
+the course syllabus, and the grading rubric as provided for each stage. In addition, less informal but no less
+important evaluation is conducted by the researcher, per the aforementioned agile framework.
+\section{Conclusion}
+\label{sec:orgc7dba0e}
+Foremost, it is this project's intention to examine CW/Morse Code audio emissions gathered by microphone via digital signal processing
+from a Data Science perspective. Audio files themselves are data structures which contain meaningful data, as well as outlier data: static, or literal noise, which can be
+\textbf{cleaned, manipulated, analyzed, and visualized} in order to \textbf{extract meaningful insights and information:} an encoded message.
+
+Ultimately, Data Science in this context will aid the parent program's ability to decode raw data from a microphone into actionable information that can either be displayed to an end-user
+and/or executed directly by another program in an application stack as part of a larger project. As such, if this project can meet its goals , it not only adequately demonstrates
+Data Science's intrinsic value in analyzing and understanding complicated information such as audio waveforms, but additionally showcases its value as an applied science to further other
+other fields, such as Robotics, Telecommunications, and Machine Learning, which are likewise key areas relating to the larger project.
+\section{References}
+\label{sec:org2a4720c}
+\printbibliography
+\end{document}
