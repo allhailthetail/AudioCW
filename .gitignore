@@ -1,0 +1,3 @@
+# Excluding research papers used, because I'm unsure if it'd be kosher to include in a
+# git repo without proper attribution...
+data-sci/research-papers/*
