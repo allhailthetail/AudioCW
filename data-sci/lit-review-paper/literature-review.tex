@@ -1,0 +1,191 @@
+\documentclass[letterpaper, 12 pt, conference]{ieeeconf}  
+
+% Define custom color for links:
+\usepackage{xcolor}
+\definecolor{seaGreen}{RGB}{77, 182, 172}
+\definecolor{fireRed}{RGB}{229, 57, 53}
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,      
+    urlcolor=seaGreen,
+    citecolor=magenta,
+}
+
+\usepackage{amsmath}
+\usepackage{fontspec}
+\setmainfont{TeX Gyre Termes}
+\usepackage{lmodern} % assumes new font selection scheme installed
+
+% Configuration to use biber bibliography:
+\usepackage[backend=biber,style=ieee]{biblatex}
+\addbibresource{refs.bib}
+
+% Configure title and author:
+\title{\LARGE \bf
+From Ecoacoustics to CW: Spectrogram-First Visual Analysis of Morse Code Signals
+}
+
+\author{Matthew Younger\\% <-this % stops a space
+October 4\textsuperscript{th}, 2025\\
+Course: DSC 105 - Introduction to Data Science\\
+Pledged
+}
+
+% Main doc begins here:
+\begin{document}
+
+% insert the title as previously defined
+\maketitle
+\thispagestyle{empty}
+\pagestyle{empty}
+
+% Abstract section begins
+\begin{abstract}
+    This is a review of several academic papers, primarily belonging to the study of ecoacoustics. There has been much study conducted in the area of ecoacoustics for the sake of conservation. The goal of this paper is to highlight the relevant techniques stemming from ecoacoustics and apply them more broadly to digital signal processing. Like sounds heard every day on planet earth, CW signals are also acoustic data, with their own acoustic characteristics. These sources demonstrate reasonable success in modeling complex ecosystems through visual storytelling and quantitative analysis. Logically, one could suppose that these same methods could also be used to represent far less complex "dits" and "das" sent over electromagnetic waves or directly through audio transmissions via CW.
+
+    These acoustics researchers all seem to confer that the cornerstone of audio visualization in their field is the spectrogram, which provides a two-dimensional graphical representation of sound \autocite{zhao}. The Short-Time Fourier Transform converts received audiio data into a spectrogram, which maps time along the X-axis, frequency along the Y-axis, and amplitude - the sound energy - as color. As is often the case in bioacoustics, the sounds obtained under ideal conditions can be interpreted accurately through visualizations such as these, without ever needing to be listened to \autocite{Ibiashi}.
+
+    More broadly, the collected sources identify seven relevant visualization techniques and quantitative metrics of interest:
+\begin{enumerate}
+  \item Waveforms and Spectrograms
+  \item Object-Based Image Analysis
+  \item Acoustic Richness
+  \item Acoustic Dissimilarity
+  \item Acoustic Complexity Index
+\end{enumerate}
+
+    The following is a brief overview of what these researchers have learned about these metrics and techniques, which has been interpreted in light of their usefulness in processing CW\footnote{CW: Continuous Wave, refers to a method of radio communication also known as "Morse Code."} signals.
+\end{abstract}
+
+% Waveform section begins
+\section{Waveforms}
+\subsection{Visualizing Audio in the Time Domain}
+
+    A \textbf{waveform} is the foundational and most familiar representation of audio information in the time domain \autocite{Sueur}. This uni-dimensional visual representation of audio depicts how the amplitude of a sound signal changes over time, making it ideal for revealing the raw, \textit{basic structure} of acoustic data as the microphone received it. In ecoacoustics, researchers use waveforms to recognize bird calls, insect pulses, and to identify and reduce or elliminate anthropogenic disturbances. In the context of CW, these same temporal patterns correspond to digital \texttt{"dits"} and \texttt{"dahs"}, which are discrete packets of information encoded through amplitude modulation. Thus, waveforms are not only a signal analysis tool, but also serve as a straightforward \textit{visualization} of the data embedded in the signal itself.
+
+    This information is best represented in R using time series classes or numeric vectors. Matrices may also be used, but are mainly relevant only if the audio is received in stereo or otherwise not converted to mono audio before processing \autocite{seewaveCran}. A few relevant metrics that are proceed directly from the analysis of waveforms include:
+\begin{itemize}
+    \item Temporal Entropy \ref{eq:Ht} \autocite{Sueur}
+    \item Amplitude Median \autocite{Depraetere}
+    \item Activity\footnote{Activity: The fraction of frames whose decibel value exceeds a threshold of 3 dB above the value of the background noise.} \autocite{Philips} 
+\end{itemize}
+
+    Temporal entropy will be discussed later in the review, while the Amplitude Median can be calculated mathematically as follows:
+\begin{equation}
+    \begin{split}
+        &M = \text{median}(A(t))\times2^{(1-\text{depth})} \\
+        &\text{where } 0 \le M \le 1
+    \end{split}
+\end{equation}
+
+    Higher median values then imply a more uniform amplitude distribution, which corresponds to steadier and more continuous tones. Lower medians, conversely, may indicate intermittent bursts, such as the discrete tone emissions of CW transmissions.
+
+    The researchers did note that waveforms alone were somewhat limited in their overall effectiveness in understanding complex ecoacoustic data, such as diversity metrics \autocite{Eldridge}; However, CW signals are far simpler in comparison, occupying only one narrow frequency versus the large spread that various animal sounds occupy, as illustrated in all of the reviewed studies. Early analysis of the signals shows that the artificial tones without noise or interference are easily interpreted visually via waveforms using a basic audio editor, such as Tenacity\autocite{tenacityFOSS}. This holds true, provided that the noise is sufficiently reduced, which is predicted to be the more difficult task in visualizing CW signals, as the literature reviews is often also the case in ecoacoustics.
+
+    The \textit{activity metric} is another useful means by which to quantify an audio signal in the time domain. High activity percentages indicate a near continuous tone, while low activity indicates brief and well-separated pulses of sound. For CW, this could measure the transmission speed (in words per minute) of the signal, which is highly relevant to accurately decoding the data correctly\footnote{The word PARIS is the standard for determing code speed. Each dit is one element, each dah is three elements, intra-character spacing is one element, inter-character spacing is three elements and inter-word spacing is seven elements. Miscalculation of WPM inevitably results in an unintelligible signal.}.
+
+% Spectrograms section begins
+\section{Spectrograms}
+\subsection{Visualizing Audio in the Frequency Domain}
+    As hinted at in the abstract, spectrograms can be thought of as the waveform's closely-related cousin, but they offer an entirely different lens through which to visually interpret sound. Rather than representing the signal in terms of amplitude in time, Short-Time Fourier Transformations are applied to the signal, which is then represented in the frequency domain with amplitude variations represented by a corresponding color range \autocite{zhao}. Thus, spectrograms effectively convert a one-dimensional wavefrom into a multi-dimensional visual indicator, wherein \textbf{noise is manifest as sparse irregular textures} (this becomes relevant later) and \textbf{dense concentrations of energy which are more likely to be the meaningful signals being sought after.}
+
+    The entropy analysis techniques that the cited ecoacoustic researchers have studied offer a means by which to mathematically quantify noise and signal clarity more generally. Spectral entropy \textit{$H_f$} can be calculated from the transform of the audio and its product with temporal entropy yields total entropy, \textit{$H$} \autocite{Sueur}:
+
+% Equation for temporal entropy (H_t)
+\begin{equation}
+H_t = - \sum_{t=1}^{n} A(t) \times \log_2(A(t)) \times \log_2(n)^{-1}
+\label{eq:Ht}
+\end{equation}
+
+% Equation for spectral entropy (H_f)
+\begin{equation}
+H_f = - \sum_{f=1}^{N} S(f) \times \log_2(S(f)) \times \log_2(N)^{-1}
+\end{equation}
+
+% Equation for acoustic entropy (H)
+\begin{equation}
+H = H_f \times H_t ~~ H \in [0,1]
+\end{equation}
+
+    Most relevant to discerning tones from background noise, a total entropy value trending towards \textit{zero} often indicates a pure tone, while an entropy value nearing \textit{one} represents background noise. Conveniently, Seuer, et.al., packaged the functions which they found useful for their analysis as an R package in the \texttt{seewave} library \autocite{seewaveCran}, which makes using and validating the efficacy of these measures very approachable, particularly for an undergraduate project.
+
+    Unfortunately, one key limitation of spectrograms, at least when it comes to its use in ecological applications, stems from the difficulty in filtering noise from the desired signals. Noise causes a clear spectrogram to become visually polluted and thus difficult to interpret. The researchers in these studies found this to be particularly the case in spectrally crowded urban environments, where many different sources \textit{(and therefore different frequencies)} of anthropophony or other environmental noise are particularly strong. The sources noted having a very challenging time in selecting only the desired sounds \autocite{zhao} in the most extreme cases where noise was most prevalent in their recordings. Specifically, one source noted that spread-spectrum noise skews the \textit{$H_f$} value disproportionately compared to its affect on \textit{$H_t$} value \autocite{Depraetere}. In any case, since \textit{$H$} is a product of the other two entropy measures, the skew of one necessarily affects the final entropy measure; this runs somewhat contrary to Sueur's study and suggests that in some cases, there is a strong possibility that the recording as a whole stands to be severely misinterpreted if these entropy values are used exclusively to filter noise from the desired signal. Conceptually, this follows when one considers the role of constructive and destructive interference and the intermixing of signals, which all of the reviewed sources seem to confer often represents a significant challenge. This may be particularly the case for the reliability of a future application designed to automatically decode audible CW signals, which could contain various types and intensities of noise, depending on the environment. 
+
+% Acoustic Richness / Dissimilarity section begins
+%\section{Acoustic Richness and Dissimilarity}
+\section{Acoustic Indices in the Time and Frequency Domain}
+
+\subsection{Acoustic Richness and Dissimilarity}
+    As previously noted, Depraetere's research revealed that \textit{$H_t$} was a particularly fragile metric, which led to the development of several novel metrics, chiefly \textit{Acoustic Richness $AR$} and \textit{Acoustic Dissimilarity $D$}, which are given by: 
+
+% Equation for Acoustic Richness
+\begin{equation}
+\text{AR} = \frac{\text{rank}(H_t) \times \text{rank}(M)}{n^2}
+\end{equation}
+
+% Equation for Acoustic Dissimilarity:
+\begin{equation}
+D = D_t \times D_f
+\end{equation}
+
+    These metrics were specifically adapted to counter the widespread difficulty all of the researchers have noted with analyzing noisy environments where \textbf{anthropophony} muddies the signals \autocite{Depraetere}. However, she notes that severe meteorological conditions negatively affected the \textit{$AR$} value; Since the background noise in this project's synthetic CW dataset \autocite{ag1le2014} is effectively a similar form of static as Depraetere encountered, it's possible this noise would also skew the \textit{$AR$} value and make it similarly ineffective in detecting or aiding to negate the general noise \textit{not} due to anthropophony.
+
+\subsection{Acoustic Complexity Index}
+    Opposite of Depraetere's somewhat discouraging findings, Eldridge notes that the \textit{$ACI$} value was particularly useful for distinguishing biological variability from continuous background noise. They noted that this metric was particularly robust relative to the other indices for this purpose. However, this project has some unique limitations relative to discerning ecological noise - that is, both the static/background noise and the repetitive CW tones likely vary little in terms of frequency. As such, it's hypothetically possible that this metric, and potentially the others as well, may ultimately be of little use in the proposed application. 
+
+\subsection{Summary of Relevant Acousitc Indices}
+% Table of the different indices available:
+\begin{table}[h]
+    \centering
+    \begin{tabular}{|c|p{2.5cm}|p{2.5cm}|} % Adjust column width as needed
+        \hline
+        \textbf{Index} & \textbf{Goal/Inference} & \textbf{Metric} \\[1ex]
+        \hline
+        $ACI$ & Activity in sample & Intensity between spectrogram bins \\[1ex]
+        \hline
+        $AR$ & Diversity & $H_t$ \& $M$ \\[1ex]
+        \hline
+        $D$ & Diversity between samples & $D_t$ \& $D_f$ \\ [1ex]
+        \hline
+    \end{tabular}
+    \caption{Summary of Audio Analysis Metrics}
+    \label{tab:simple_table}
+\end{table}
+
+% OBIA section begins
+\section{Object-Based Image Analysis}
+\subsection{Borrowing From Remote Sensing}
+
+    One novel methodology proposed by the Shanghai Ministry of Science and Technology was to analyze the derived spectrograms as if they were images, similar to how computer vision is applied to biomedical applications and remote sensing work. The researchers aptly dubbed this technique \textit{object-based image analysis}, which was a particularly clever solution that seems to have addressed many of the shortcomings of the previously discussed entropy measures. When applied in ecoacoustic analysis of urban forests, this technique yielded an impressive \texttt{93.55\% (±4.78\%)} accuracy in successfully identifying various animals' unique audible characteristics, which is vastly more accurate compared to traditional methods (including the painstaking manual inspection by trained ecologists) \autocite{zhao}.
+
+    Specifically, Zhao's \textit{OBIA} technique treated various sounds of interest as distinct \textit{visual syllables} within the \textit{spectrograms}, with each animal having a distinct shape and color on the spectrogram representing the frequency range and strength of their emissions. However, in contrast to animal sounds, CW signals occupy a very narrow band of audible frequency, whose comparatively tiny sliver of audio spectrum may not be discernable at all to a computer vision algorithm. Moreover, the concern is less whether a CW signal is present in the audio (that's a given for the dataset in this case), but with the patterns of emissions themselves. This suggests that while Zhao's exact technique is less useful for discerning CW signals, the concept of analyzing the spectrograms and waveforms as if they were landscape topographies with peaks and valleys (these methods are used in GIS applications and are very mature) is a novel idea and may still hold promise for the author's research. 
+
+    Zhao and his fellow researchers were able to discern the animal sounds from noise \textit{syllables} by defining \textit{Syllable Feature Metrics (SFMs)} for the species of interest, which they derived from previously-analyzed data using the R package \texttt{landscapemetrics}. While dits and das in CW by themselves are barely distinct in the \textit{frequency domain} of a spectrogram, the syllables - i.e. letters themselves - are very distinct in \textit{waveforms} (in the time domain) and could in theory also be classified by their shape and roughness by precisely these same means. Past experiences have demonstrated that small single-board computers, such as the Raspberry Pi \textit{are} quite capable of successfully conducting simple computer vision tasks\footnote{The author has found that combining simple Python scripts and Tesseract on Raspberry Pi SBCs to decode numeric values from mono-color image sets has proved to be very viable.}; therefore, analyzing short spectrograms, or more likely waveforms\footnote{CW is encoded in the time domain}, of synthetic CW audio could prove to be a relatively trivial task, which makes this technique interesting - particularly for the parent project's overarching goal \autocite{audioCW}.
+
+% Conclusion begins
+\section{Conclusion}
+
+    In summary, this review explored a selection of techniques originally developed for ecoacoustics and evaluated their potential for more general applications in Digital Signal Processing of CW signals. These means and techniques - waveforms, spectrograms, various acoustic indices, and object-based image analysis - share a common goal: that of transforming complex audio data into \textit{quantitative and visually interpretable forms.} The discussed metrics are already being used with reasonable success in the biosciences and the field of ecology more generally to provide transparent, repeatable, and efficient analysis of habitats with very limited resources. As such, a strong case can be made for its efficacy in analyzing far more simple CW audio emissions in similarly limited hobbyist and academic pursuits. 
+
+    From a mathematical perspective, entropy-based metrics such as \textit{$H_t$, $H_f$, AR, $D$ and ACI} form a solid foundation for objectively quanitfying a signal. While these measures are widely employed with meaningful success in the more complex field of ecoacoustics for measuring biological complexity, they show potential to be very useful for digital signal processing and analysis; signals with low entropy and stable amplitude should correspond to clean, unambiguous transmissions, whereas high entropy and fluctiating energy levels suggest instability. Thus, by examining this further in independent undergraduate research, the broader utility of these measures might be realized.
+
+    From a Data Science perspective, rapid visualization of CW audio as spectrograms, syllables, and other visually-interpretable and quantified metrics holds much promise for learning opportunities relating to machine learning, engineering, and computer science. The conceptual and methodological parallels between bioacoustics and an undergraduate study of far simpler audio signal processing can ideally foster broader inderdisciplinary connections between ecology, computer science, and data science disciplines. This aligns well with the ever-evolving goals of a modern education rooted in scientific inquiry and liberal arts values.
+
+% AI disclaimer section begins
+\section{Artificial Intelligence Disclaimer}
+\textsl{NotebookLM was used to assist with the literature review process; AI was used for proofreading and suggesting edits, due to time constraints and because this was a solo endeavor at the time of writing. Similarly, AI-assisted search was used in locating a suitable template for the document itself and troubleshooting compiling this document in \LaTeX.}
+
+\addtolength{\textheight}{-12cm}   % This command serves to balance the column lengths
+                                  % on the last page of the document manually. It shortens
+                                  % the textheight of the last page by a suitable amount.
+                                  % This command does not take effect until the next page
+                                  % so it should come on the page before the last. Make
+                                  % sure that you do not shorten the textheight too much.
+
+% Lastly, insert bibliography
+\AtEndDocument{\printbibliography}
+
+% Declare end of document
+\end{document}
