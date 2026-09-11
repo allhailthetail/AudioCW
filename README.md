@@ -2,6 +2,8 @@
 
 This new branch is a revamp of the project, aimed at understanding the specifics of how Morse Code propagates as sound. 
 
+**Built on Python 3.14.6**
+
 # How CW works:
 
 CW is transmitted via Amplitude Modulation (AM). A single constant-frequency carrier signal, dentoed $c(t)$ is mixed with a modulating signal $m(t)$. In this sense, CW is transmitted via a special form of Amplitude-shift keying, called on-off keying. That is, rather than the modulating signal being a dynamic, complex signal like a voice, it's a simple binarysignal with only two values: ${On,Off} = {0,1}$. Though in many ways this makes for a very simple signal (perhaps the simplest non-trivial signal possible), it also introduces some challenges.
