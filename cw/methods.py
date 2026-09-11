@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.io import wavfile
 
+# CW Alphabet, currently alphanumeric only.
 alphabet = {
     "a": "10111",
     "b": "111010101",
@@ -41,14 +42,24 @@ alphabet = {
 }
 
 def _carrier_wave(x, frequency = 700, amplitude = 1, phase = 0, offset = 0):
+    """
+    Generates a sine carrier wave at a particular amplitude and frequency, phase, offset.
+    """
     return (amplitude * np.sin(2 * np.pi * frequency * x + phase) + offset)
 
 def _mix_m_t(m_t, frequency = 700, sample_rate = 8000):
+    """
+    Mixes the carrier wave with the signal wave.
+    """
     t_values = np.arange(len(m_t)) / sample_rate
     c_t = _carrier_wave(t_values)
     return c_t * m_t
 
 def _word_to_ook_tau(word):
+    """
+    Converts input word/phrase into valid CW code of 0's and 1's. 
+    Output is list of single-digit binary values.
+    """
     cw_code = [0]
     for letter in word.lower():
         mapping = alphabet.get(letter)
@@ -60,6 +71,9 @@ def _word_to_ook_tau(word):
     return [int(x) for x in cw_code]
 
 def _ook_sr_convert(key_sequence, wpm=10, sample_rate=8000):
+    """
+    Up-converts a list of binary on-off key signals to a particular sample rate.
+    """
     tau = 1.2 / wpm
     samples_per_tau = tau * sample_rate          # keep as float, don't round yet
 
@@ -73,6 +87,26 @@ def _ook_sr_convert(key_sequence, wpm=10, sample_rate=8000):
         converted[boundaries[i]:boundaries[i + 1]] = level
 
     return converted.tolist()
+
+def _one_pole_lowpass(signal, carrier_frequency, sample_rate):
+    """A one-pole IIR low-pass filter: y[n] = alpha*x[n] + (1-alpha)*y[n-1].
+
+    Each output sample is a weighted blend of the current input and the
+    *previous output* -- so a sudden jump in the input only shows up
+    gradually in the output, over several samples, instead of instantly.
+    """
+
+    fc = 1.5 * carrier_frequency
+    RC = 1 / (2 * np.pi * fc)
+    dt = 1 / sample_rate
+    alpha = dt / (RC + dt)
+
+    y = np.zeros_like(signal, dtype=float)
+    y[0] = signal[0]
+    for n in range(1, len(signal)):
+        y[n] = alpha * signal[n] + (1 - alpha) * y[n - 1]
+    
+    return y
 
 def _save_wav(signal, path, sample_rate = 8000):
     audio_int16 = (signal * 32767).astype(np.int16)
