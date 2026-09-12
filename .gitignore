@@ -1,1 +1,4 @@
 *.wav
+
+# ignore the Hermes agent's jail:
+*/.agent_jail/

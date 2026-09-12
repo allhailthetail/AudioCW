@@ -41,11 +41,64 @@ alphabet = {
     "9": "11101110111011101"
 }
 
-def _carrier_wave(x, frequency = 700, amplitude = 1, phase = 0, offset = 0):
+def _carrier_wave(x, frequency = 700, amplitude = 1, phase = 0, offset = 0, apply_pitch_drift=False, max_drift=2.0):
     """
     Generates a sine carrier wave at a particular amplitude and frequency, phase, offset.
+
+    Args:
+        x: time values
+        frequency: carrier frequency (Hz)
+        amplitude: wave amplitude
+        phase: wave phase
+        offset: wave offset
+        apply_pitch_drift: whether to apply pitch drift
+        max_drift: maximum frequency deviation for drift (Hz)
     """
-    return (amplitude * np.sin(2 * np.pi * frequency * x + phase) + offset)
+    if apply_pitch_drift:
+        # Generate time-varying frequency
+        sample_rate = 1.0 / (x[1] - x[0]) if len(x) > 1 else 8000
+        dt = 1.0 / sample_rate
+        drift_changes = np.random.normal(0, max_drift/50, len(x))
+        cumulative_drift = np.cumsum(drift_changes) * dt
+        instantaneous_freq = frequency + cumulative_drift
+        return (amplitude * np.sin(2 * np.pi * instantaneous_freq * x + phase) + offset)
+    else:
+        return (amplitude * np.sin(2 * np.pi * frequency * x + phase) + offset)
+
+
+def _add_atmospheric_noise(signal, noise_level=0.01):
+    """
+    Add atmospheric noise to the signal.
+
+    Args:
+        signal: input audio signal
+        noise_level: amplitude of noise (0.0 to 1.0)
+
+    Returns:
+        Signal with atmospheric noise added
+    """
+    noise = np.random.normal(0, noise_level, len(signal))
+    return signal + noise
+
+
+def _apply_rayleigh_fading(signal, fading_factor=0.5):
+    """
+    Apply Rayleigh fading to simulate ionospheric propagation changes.
+
+    Args:
+        signal: input audio signal
+        fading_factor: controls the severity of fading (0.0 to 1.0)
+
+    Returns:
+        Signal with Rayleigh fading applied
+    """
+    # Generate Rayleigh distributed envelope
+    # Using the fact that Rayleigh distribution can be generated from two normal random variables
+    num_samples = len(signal)
+    envelope = np.random.rayleigh(fading_factor, num_samples)
+
+    # Apply the envelope to the signal
+    return signal * envelope
 
 def _mix_m_t(m_t, frequency = 700, sample_rate = 8000):
     """
@@ -70,9 +123,16 @@ def _word_to_ook_tau(word):
 
     return [int(x) for x in cw_code]
 
-def _ook_sr_convert(key_sequence, wpm=10, sample_rate=8000):
+def _ook_sr_convert(key_sequence, wpm=10, sample_rate=8000, apply_timing_jitter=False, jitter_std=0.05):
     """
     Up-converts a list of binary on-off key signals to a particular sample rate.
+    
+    Args:
+        key_sequence: List of binary values (0s and 1s)
+        wpm: Words per minute
+        sample_rate: Audio sampling rate
+        apply_timing_jitter: Whether to apply human-like timing variations
+        jitter_std: Standard deviation for timing jitter (default 5%)
     """
     tau = 1.2 / wpm
     samples_per_tau = tau * sample_rate          # keep as float, don't round yet
@@ -80,7 +140,18 @@ def _ook_sr_convert(key_sequence, wpm=10, sample_rate=8000):
     # boundary[i] = sample index where unit i begins, computed from absolute
     # elapsed time (i * samples_per_tau), not by repeatedly stepping by a
     # truncated per-unit count
-    boundaries = np.round(np.arange(len(key_sequence) + 1) * samples_per_tau).astype(int)
+    if apply_timing_jitter:
+        # Apply human-like timing variations
+        boundaries = []
+        for i in range(len(key_sequence) + 1):
+            base_boundary = i * samples_per_tau
+            # Add normal distribution jitter (±jitter_std of base tau)
+            jitter = np.random.normal(0, jitter_std * samples_per_tau)
+            jittered_boundary = base_boundary + jitter
+            boundaries.append(jittered_boundary)
+        boundaries = np.round(boundaries).astype(int)
+    else:
+        boundaries = np.round(np.arange(len(key_sequence) + 1) * samples_per_tau).astype(int)
 
     converted = np.zeros(boundaries[-1], dtype=int)
     for i, level in enumerate(key_sequence):

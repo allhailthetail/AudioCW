@@ -15,3 +15,24 @@ A quick internet search on key-clicks reveals that the cause is the modulating f
 Here again, Audio is a great vehicle to understand this phenomenon, since most humans can hear tones from 20Hz - 20 kHz.
 So, it should be an interesting experiment to attempt to create some very bad on-off-keying audio and compare with ARRL's recommended $5ms$ rise/fall interval. A fourier transform should reveal the offending frequencies. :)
 
+## Challenge #2: Synthetic Data Augmentation
+
+Somehow, my perfect synthetic data needs to be modified to have some variance in it.
+
+- Human timing variance
+    > "Introduce normal distribuitions of variances to the dits, dashes, and spacing"
+
+- Pitch drift
+    > "Transmitters are seldom perfectly stable."
+
+- Atmospheric noise
+
+- Interference
+    > Superimpose a second, weaker CW signal at a slightly different CW frequency (100Hz offset)
+
+- Fading
+    > Apply Rayleigh fading to the signal amplitude to simulate ionospheric propagation changes.
+
+# Model Specifications
+
+The recommended model setup (per Gemini) is to use PyTorch and torchaudio. The neural net should be a CNN (Convolutional Neural Net) paried with CTC (Connectionist Temporal Classification) loss function.
