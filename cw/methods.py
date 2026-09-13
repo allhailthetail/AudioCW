@@ -100,13 +100,18 @@ def _apply_rayleigh_fading(signal, fading_factor=0.5):
     # Apply the envelope to the signal
     return signal * envelope
 
-def _mix_m_t(m_t, frequency = 700, sample_rate = 8000):
+def _mix_m_t(m_t, frequency = 700, sample_rate = 8000, drift = 0):
     """
     Mixes the carrier wave with the signal wave.
     """
     t_values = np.arange(len(m_t)) / sample_rate
-    c_t = _carrier_wave(t_values)
-    return c_t * m_t
+    
+    if drift == 0:
+        c_t = _carrier_wave(t_values)
+        return c_t * m_t
+    else:
+        c_t = _carrier_wave(t_values, apply_pitch_drift=True, max_drift=drift)
+        return c_t * m_t
 
 def _word_to_ook_tau(word):
     """
